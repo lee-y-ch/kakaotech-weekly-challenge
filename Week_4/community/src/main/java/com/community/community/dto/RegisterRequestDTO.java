@@ -1,50 +1,27 @@
 package com.community.community.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import lombok.Getter;
+import lombok.Setter;
 
-// Jackson JSON 변환 라이브러리가 api 요청 body를 해당 DTO로 객체로 변환
+@Getter @Setter
 public class RegisterRequestDTO {
 
+    @NotBlank(message = "invalid_register_request")
+    @Email(message = "invalid_register_request")
     private String email;
+
+    @NotBlank(message = "invalid_register_request")
     private String password;
+
+    @NotBlank(message = "invalid_register_request")
+    @Size(max = 10, message = "invalid_register_request")
     private String nickname;
 
-    // 명세에 profile_image인 값을 profileImage 변수와 매핑시키기 위해 JsonProperty 사용
-    @JsonProperty("profile_image")
-    private String profileImage;
-
-    public RegisterRequestDTO() {
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public String getPassword() {
-        return password;
-    }
-
-    public String getNickname() {
-        return nickname;
-    }
-
-    public void setEmail(String email) {
-        this.email = email;
-    }
-
-    public void setPassword(String password) {
-        this.password = password;
-    }
-
-    public void setNickname(String nickname) {
-        this.nickname = nickname;
-    }
-
-    public void setProfileImage(String profileImage) {
-        this.profileImage = profileImage;
-    }
-
-    public String getProfileImage() {
-        return profileImage;
-    }
+    @JsonProperty("profile_image_url")
+    @NotBlank(message = "invalid_register_request")
+    private String profileImageUrl;
 }

@@ -1,29 +1,18 @@
 package com.community.community.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.Getter;
 
+@Getter
 public class CommentUpdateResponseDTO {
+
     @JsonProperty("comment_id")
-    private int commentId;
+    private final Integer commentId;
 
-    private String content;
+    private final String content;
 
-    public CommentUpdateResponseDTO() {
-    }
-
-    public int getCommentId() {
-        return commentId;
-    }
-
-    public String getContent() {
-        return content;
-    }
-
-    public void setCommentId(int commentId) {
+    public CommentUpdateResponseDTO(Integer commentId, String content) {
         this.commentId = commentId;
-    }
-
-    public void setContent(String content) {
         this.content = content;
     }
 }

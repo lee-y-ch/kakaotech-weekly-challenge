@@ -1,28 +1,18 @@
 package com.community.community.dto;
 
+import lombok.Getter;
+import lombok.Setter;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+
 // /auth/login 요청에 대한 DTO
+@Getter @Setter
 public class LoginRequestDTO {
 
+    @NotBlank(message = "invalid_login_request")
+    @Email(message = "invalid_login_request")
     private String email;
+
+    @NotBlank(message = "invalid_login_request")
     private String password;
-
-    public LoginRequestDTO() {
-
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public String getPassword() {
-        return password;
-    }
-
-    public void setEmail(String email) {
-        this.email = email;
-    }
-
-    public void setPassword(String password) {
-        this.password = password;
-    }
 }

@@ -1,61 +1,35 @@
 package com.community.community.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.Getter;
 
+@Getter
 public class CommentListItemResponseDTO {
-    @JsonProperty("comment_id")
-    private int commentId;
 
-    private String content;
+    @JsonProperty("comment_id")
+    private final Integer commentId;
+
+    private final String content;
 
     @JsonProperty("created_at")
-    private String createdAt;
+    private final String createdAt;
 
     @JsonProperty("is_author")
-    private boolean isAuthor;
+    private final boolean isAuthor;
 
-    private CommentAuthorResponseDTO author;
+    private final CommentAuthorResponseDTO author;
 
-    public CommentListItemResponseDTO() {
-    }
-
-    public int getCommentId() {
-        return commentId;
-    }
-
-    public String getContent() {
-        return content;
-    }
-
-    public String getCreatedAt() {
-        return createdAt;
-    }
-
-    public boolean isAuthor() {
-        return isAuthor;
-    }
-
-    public CommentAuthorResponseDTO getAuthor() {
-        return author;
-    }
-
-    public void setCommentId(int commentId) {
+    public CommentListItemResponseDTO(
+            Integer commentId,
+            String content,
+            String createdAt,
+            boolean isAuthor,
+            CommentAuthorResponseDTO author
+    ) {
         this.commentId = commentId;
-    }
-
-    public void setContent(String content) {
         this.content = content;
-    }
-
-    public void setCreatedAt(String createdAt) {
         this.createdAt = createdAt;
-    }
-
-    public void setIsAuthor(boolean isauthor) {
-        this.isAuthor = isauthor;
-    }
-
-    public void setAuthor(CommentAuthorResponseDTO author) {
+        this.isAuthor = isAuthor;
         this.author = author;
     }
 }

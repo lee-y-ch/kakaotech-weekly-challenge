@@ -1,42 +1,23 @@
 package com.community.community.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.Getter;
 
+@Getter
 public class PostLikeResponseDTO {
 
     @JsonProperty("post_id")
-    private int postId;
+    private final Integer postId;
 
     @JsonProperty("is_liked")
-    private boolean liked;
+    private final boolean liked;
 
     @JsonProperty("like_count")
-    private int likeCount;
+    private final int likeCount;
 
-    public PostLikeResponseDTO() {
-    }
-
-    public int getPostId() {
-        return postId;
-    }
-
-    public boolean isLiked() {
-        return liked;
-    }
-
-    public int getLikeCount() {
-        return likeCount;
-    }
-
-    public void setPostId(int postId) {
+    public PostLikeResponseDTO(Integer postId, boolean liked, int likeCount) {
         this.postId = postId;
-    }
-
-    public void setLiked(boolean liked) {
         this.liked = liked;
-    }
-
-    public void setLikeCount(int likeCount) {
         this.likeCount = likeCount;
     }
 }

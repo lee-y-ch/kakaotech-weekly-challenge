@@ -1,24 +1,15 @@
 package com.community.community.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.Getter;
 
+@Getter
 public class PasswordUpdateResponseDTO {
 
     @JsonProperty("user_id")
-    private int userId;
+    private final Integer userId;
 
-    public PasswordUpdateResponseDTO() {
-    }
-
-    public PasswordUpdateResponseDTO(int userId) {
-        this.userId = userId;
-    }
-
-    public int getUserId() {
-        return userId;
-    }
-
-    public void setUserId(int userId) {
+    public PasswordUpdateResponseDTO(Integer userId) {
         this.userId = userId;
     }
 }

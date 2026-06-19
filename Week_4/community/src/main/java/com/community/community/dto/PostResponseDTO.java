@@ -1,94 +1,63 @@
 package com.community.community.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.Getter;
 
+@Getter
 public class PostResponseDTO {
 
     @JsonProperty("post_id")
-    private int postId;
+    private final Integer postId;
 
-    private String title;
-    private String content;
+    private final String title;
+    private final String content;
 
     @JsonProperty("image_url")
-    private String imageUrl;
+    private final String imageUrl;
+
+    private final PostAuthorResponseDTO author;
 
     @JsonProperty("created_at")
-    private String createdAt;
+    private final String createdAt;
 
     @JsonProperty("like_count")
-    private int likeCount;
+    private final int likeCount;
 
     @JsonProperty("comment_count")
-    private int commentCount;
+    private final int commentCount;
 
     @JsonProperty("view_count")
-    private int viewCount;
+    private final int viewCount;
 
-    public PostResponseDTO() {
-    }
+    @JsonProperty("is_liked")
+    private final boolean liked;
 
-    public int getPostId() {
-        return postId;
-    }
+    @JsonProperty("is_author")
+    private final boolean writtenByCurrentUser;
 
-    public String getTitle() {
-        return title;
-    }
-
-    public String getContent() {
-        return content;
-    }
-
-    public String getImageUrl() {
-        return imageUrl;
-    }
-
-    public String getCreatedAt() {
-        return createdAt;
-    }
-
-    public int getLikeCount() {
-        return likeCount;
-    }
-
-    public int getCommentCount() {
-        return commentCount;
-    }
-
-    public int getViewCount() {
-        return viewCount;
-    }
-
-    public void setPostId(int postId) {
+    public PostResponseDTO(
+            Integer postId,
+            String title,
+            String content,
+            String imageUrl,
+            PostAuthorResponseDTO author,
+            String createdAt,
+            int likeCount,
+            int commentCount,
+            int viewCount,
+            boolean liked,
+            boolean writtenByCurrentUser
+    ) {
         this.postId = postId;
-    }
-
-    public void setTitle(String title) {
         this.title = title;
-    }
-
-    public void setContent(String content) {
         this.content = content;
-    }
-
-    public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
-    }
-
-    public void setCreatedAt(String createdAt) {
+        this.author = author;
         this.createdAt = createdAt;
-    }
-
-    public void setLikeCount(int likeCount) {
         this.likeCount = likeCount;
-    }
-
-    public void setCommentCount(int commentCount) {
         this.commentCount = commentCount;
-    }
-
-    public void setViewCount(int viewCount) {
         this.viewCount = viewCount;
+        this.liked = liked;
+        this.writtenByCurrentUser = writtenByCurrentUser;
     }
 }

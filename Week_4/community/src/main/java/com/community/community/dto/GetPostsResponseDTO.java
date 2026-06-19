@@ -1,28 +1,20 @@
 package com.community.community.dto;
 
+import lombok.Getter;
+
 import java.util.List;
 
+@Getter
 public class GetPostsResponseDTO {
 
-    private List<PostListItemResponseDTO> posts;
-    private PaginationResponseDTO pagination;
+    private final List<PostListItemResponseDTO> posts;
+    private final PaginationResponseDTO pagination;
 
-    public GetPostsResponseDTO() {
-    }
-
-    public void setPosts(List<PostListItemResponseDTO> posts) {
+    public GetPostsResponseDTO(
+            List<PostListItemResponseDTO> posts,
+            PaginationResponseDTO pagination
+    ) {
         this.posts = posts;
-    }
-
-    public void setPagination(PaginationResponseDTO pagination) {
         this.pagination = pagination;
-    }
-
-    public List<PostListItemResponseDTO> getPosts() {
-        return posts;
-    }
-
-    public PaginationResponseDTO getPagination() {
-        return pagination;
     }
 }

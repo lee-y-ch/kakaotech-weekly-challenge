@@ -1,84 +1,85 @@
 package com.community.community.service;
 
+import com.community.community.auth.JwtProvider;
 import com.community.community.dto.LoginRequestDTO;
+import com.community.community.dto.LoginResponseDTO;
+import com.community.community.dto.LoginResultDTO;
+import com.community.community.dto.UserResponseDTO;
 import com.community.community.entity.User;
-import com.community.community.repository.SessionRepository;
+import com.community.community.exception.BusinessException;
+import com.community.community.exception.ErrorCode;
 import com.community.community.repository.UserRepository;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Service
 public class AuthService {
 
     private final UserRepository userRepository;
-    private final SessionRepository sessionRepository;
+    private final JwtProvider jwtProvider;
+    private final PasswordEncoder passwordEncoder;
 
-    public AuthService(UserRepository userRepository, SessionRepository sessionRepository) {
+
+    public AuthService(UserRepository userRepository, JwtProvider jwtProvider, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
-        this.sessionRepository = sessionRepository;
+        this.jwtProvider = jwtProvider;
+        this.passwordEncoder = passwordEncoder;
     }
 
     // login 메서드
-    public String login(LoginRequestDTO loginRequestDTO) {
+    @Transactional(readOnly = true)
+    public LoginResultDTO login(LoginRequestDTO loginRequestDTO) {
         String email = loginRequestDTO.getEmail();
         String password = loginRequestDTO.getPassword();
 
-        // 올바르지 않은 로그인 요청 (400)
-        if (email == null || email.isBlank()
-                || password == null || password.isBlank()) {
-            throw new IllegalArgumentException("invalid_login_request");
-        }
-
-        User user = userRepository.findByEmail(email);
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_EMAIL_OR_PASSWORD));
 
         // 틀린 email or password (401)
-        if (user == null || !user.getPassword().equals(password)) {
-            throw new SecurityException("invalid_email_or_password");
+        if (!passwordEncoder.matches(password, user.getPassword())) {
+            throw new BusinessException(ErrorCode.INVALID_EMAIL_OR_PASSWORD);
         }
 
-        // UUID를 활용해 고유한 값 생성
-        String sessionId = UUID.randomUUID().toString();
-        LocalDateTime expiredAt = LocalDateTime.now().plusHours(2);
+        // 서버에 세션을 저장하지 않고, 사용자 식별 정보를 담은 JWT를 발급한다.
+        String accessToken = jwtProvider.createAccessToken(
+                user.getUserId(),
+                user.getEmail(),
+                user.getNickname()
+        );
 
-        sessionRepository.save(sessionId, user.getUserId(), expiredAt);
+        UserResponseDTO userResponse = new UserResponseDTO(
+                user.getUserId(),
+                user.getEmail(),
+                user.getNickname(),
+                user.getProfileImageUrl()
+        );
 
-        return sessionId;
+        LoginResponseDTO loginResponse = new LoginResponseDTO(userResponse);
+
+        return new LoginResultDTO(loginResponse, accessToken);
     }
 
     // 현재 사용자를 확인하는 메서드
-    public int getCurrentUserId(String authorization) {
-        // 클라이언트가 body로 전달한 user_id는 조작될 수 있으므로 신뢰하지 않는다.
-        // 서버가 발급한 session_id를 검증한 뒤 현재 로그인한 사용자를 식별한다.
-        if (authorization == null || !authorization.startsWith("Session ")) {
-            throw new SecurityException("unauthorized");
+    // HttpOnly Cookie로 전달된 JWT를 검증하고, subject에 저장된 userId를 현재 사용자로 사용한다.
+    public int getCurrentUserId(String accessToken) {
+        if (accessToken == null || accessToken.isBlank()) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
 
-        String sessionId = authorization.substring("Session ".length());
-        Integer userId = sessionRepository.findUserIdBySessionId(sessionId);
-
-        if (userId == null) {
-            throw new SecurityException("unauthorized");
+        if (!jwtProvider.validateAccessToken(accessToken)) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
 
-        return userId;
+        return jwtProvider.getUserId(accessToken);
     }
 
-    public void logout(String authorization) {
-        if (authorization == null || !authorization.startsWith("Session ")) {
-            throw new SecurityException("unauthorized");
-        }
-
-        String sessionId = authorization.substring("Session ".length());
-
-        Integer userId = sessionRepository.findUserIdBySessionId(sessionId);
-
-        if (userId == null) {
-            throw new SecurityException("unauthorized");
-        }
-
-        sessionRepository.deleteBySessionId(sessionId);
+    public void logout(String accessToken) {
+        // 현재는 Access Token만 사용하므로 서버에서 삭제할 세션 데이터가 없다.
+        // 따라서 로그아웃 요청에서는 토큰이 유효한지만 확인하고,
+        // 실제 로그아웃 처리는 Controller에서 accessToken 쿠키를 만료시키는 방식으로 처리한다.
+        getCurrentUserId(accessToken);
     }
 
 }

@@ -1,10 +1,16 @@
 package com.community.community.controller;
 
 import com.community.community.ApiResponse;
+import com.community.community.auth.CurrentUserId;
 import com.community.community.dto.LoginRequestDTO;
-import com.community.community.dto.LoginResponseDTO;
+import com.community.community.dto.LoginResultDTO;
+import com.community.community.dto.UserResponseDTO;
+import com.community.community.entity.User;
 import com.community.community.service.AuthService;
-import org.springframework.http.HttpStatus;
+import com.community.community.service.UserService;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,66 +18,68 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
+    private final UserService userService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, UserService userService) {
+
         this.authService = authService;
+        this.userService= userService;
     }
 
     @PostMapping("/auth")
-    public ResponseEntity<?> login(@RequestBody LoginRequestDTO request) {
-        try {
-            String sessionId = authService.login(request);
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequestDTO request) {
+        LoginResultDTO result = authService.login(request);
 
-            LoginResponseDTO data = new LoginResponseDTO();
-            ApiResponse<LoginResponseDTO> response = new ApiResponse<>("login_success", data);
+        // accessToken은 JS에서 직접 다루지 않도록 HttpOnly Cookie로 내려준다.
+        ResponseCookie accessTokenCookie = ResponseCookie.from("accessToken", result.getAccessToken())
+                .httpOnly(true)
+                .secure(false)
+                .path("/")
+                .maxAge(7200)
+                .sameSite("Lax")
+                .build();
 
-            data.setSessionId(sessionId);
-
-            return ResponseEntity.ok(response);
-
-            // 필수값 누락 등 잘못된 로그인 요청에 대한 400 응답
-        } catch (IllegalArgumentException e) {
-            ApiResponse<LoginResponseDTO> response = new ApiResponse<>(e.getMessage(), null);
-
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
-
-            // 이메일 또는 비밀번호 불일치에 대한 401 응답
-        } catch (SecurityException e) {
-            ApiResponse<LoginResponseDTO> response = new ApiResponse<>(e.getMessage(), null);
-
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
-
-            // 예상하지 못한 서버 내부 오류에 대한 500 응답
-        } catch (Exception e) {
-            ApiResponse<LoginResponseDTO> response = new ApiResponse<>("internal_server_error", null);
-
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
-        }
+        return ResponseEntity.ok().header(HttpHeaders.SET_COOKIE, accessTokenCookie.toString())
+                .body(new ApiResponse<>("login_success", result.getResponse()));
     }
 
     @DeleteMapping("/auth")
     public ResponseEntity<?> logout(
-            // Header 누락도 인증 실패로 처리하기 위해 required = false로 설정한다.
-            // 기본값(true)을 사용하면 Controller 진입 전에 Spring이 400을 반환할 수 있다.
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @CurrentUserId int currentUserId
     ) {
-        try {
-            authService.logout(authorization);
+        // 서버에 저장된 세션이 없으므로, 로그아웃은 브라우저의 accessToken 쿠키를 만료시키는 방식으로 처리한다.
+        ResponseCookie expiredCookie = ResponseCookie.from("accessToken", "")
+                .httpOnly(true)
+                .secure(false)
+                .path("/")
+                .maxAge(0)
+                .sameSite("Lax")
+                .build();
 
-            return ResponseEntity.noContent().build();
+        return ResponseEntity.noContent()
+                .header(HttpHeaders.SET_COOKIE, expiredCookie.toString())
+                .build();
 
-            // session_id가 없거나 만료되어 인증에 실패한 경우: 401
-        } catch (SecurityException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
-                    new ApiResponse<>("unauthorized", null)
-            );
-
-            // 서버 내부 오류: 500
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                    new ApiResponse<>("internal_server_error", null)
-            );
-        }
     }
 
+    // 프론트 코드의 /auth/check api 호출에 답하기 위해 생성
+    @GetMapping("/auth/check")
+    public ResponseEntity<?> checkAuth(
+            @CurrentUserId int currentUserId
+    ) {
+        // /auth/check는 URL에 조회 대상 userId가 없다.
+        // 현재 로그인 사용자를 확인하는 API이므로 조회 대상과 인증 사용자를 같은 값으로 넘긴다.
+        User user = userService.getUser(currentUserId, currentUserId);
+
+        UserResponseDTO data = new UserResponseDTO(
+                user.getUserId(),
+                user.getEmail(),
+                user.getNickname(),
+                user.getProfileImageUrl()
+        );
+
+        return ResponseEntity.ok(
+                new ApiResponse<>("auth_check_success", data)
+        );
+    }
 }

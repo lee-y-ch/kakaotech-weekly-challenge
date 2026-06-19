@@ -1,54 +1,47 @@
 package com.community.community.entity;
 
+import jakarta.persistence.*;
+import lombok.Getter;
+
+@Entity
+@Table(name = "users")
+@Getter
 public class User {
 
-    private int user_id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "user_id")
+    private Integer userId;
+
+    @Column(nullable = false, unique = true, length = 255)
     private String email;
+
+    @Column(nullable = false, length = 255)
     private String password;
+
+    @Column(nullable = false, unique = true, length = 10)
     private String nickname;
-    private String profileImage;
 
-    public User() {
+    @Column(name = "profile_image_url", nullable = false, length = 500)
+    private String profileImageUrl;
 
+    protected User() {
     }
 
-    public int getUserId() {
-        return user_id;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public String getPassword() {
-        return password;
-    }
-
-    public String getNickname() {
-        return nickname;
-    }
-
-    public String getProfileImage() {
-        return profileImage;
-    }
-
-    public void setUserId(int user_id) {
-        this.user_id = user_id;
-    }
-
-    public void setEmail(String email) {
+    public User(String email, String password, String nickname, String profileImageUrl) {
         this.email = email;
-    }
-
-    public void setPassword(String password) {
         this.password = password;
-    }
-
-    public void setNickname(String nickname) {
         this.nickname = nickname;
+        this.profileImageUrl = profileImageUrl;
     }
 
-    public void setProfileImage(String profileImage) {
-        this.profileImage = profileImage;
+    // setter를 모두 설정하지 않고 필요한 속성에 대해서만 따로 만듦
+    public void updateProfile(String nickname, String profileImageUrl) {
+        this.nickname = nickname;
+        this.profileImageUrl = profileImageUrl;
+    }
+
+    public void updatePassword(String password) {
+        this.password = password;
     }
 }

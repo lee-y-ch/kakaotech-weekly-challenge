@@ -1,40 +1,21 @@
 package com.community.community.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import lombok.Getter;
+import lombok.Setter;
 
+@Getter @Setter
 public class PostUpdateRequestDTO {
 
+    @NotBlank(message = "invalid_update_post_request")
+    @Size(max = 26, message = "invalid_update_post_request")
     private String title;
+
+    @NotBlank(message = "invalid_update_post_request")
     private String content;
 
     @JsonProperty("image_url")
     private String imageUrl;
-
-    public PostUpdateRequestDTO() {
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public String getContent() {
-        return content;
-    }
-
-    public String getImageUrl() {
-        return imageUrl;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
-    public void setContent(String content) {
-        this.content = content;
-    }
-
-    public void setImageUrl(String imageUrl) {
-        this.imageUrl = imageUrl;
-    }
-
 }

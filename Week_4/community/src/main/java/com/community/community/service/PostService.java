@@ -2,60 +2,101 @@ package com.community.community.service;
 
 import com.community.community.dto.*;
 import com.community.community.entity.Post;
+import com.community.community.entity.PostLike;
+import com.community.community.entity.PostLikeId;
+import com.community.community.entity.User;
+import com.community.community.exception.BusinessException;
+import com.community.community.exception.ErrorCode;
 import com.community.community.repository.PostLikeRepository;
 import com.community.community.repository.PostRepository;
+import com.community.community.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.servlet.View;
 
 import java.util.List;
 
 @Service
 public class PostService {
 
+
+    private final UserRepository userRepository;
     private final PostRepository postRepository;
     private final PostLikeRepository postLikeRepository;
+    private final View view;
 
-    public PostService(PostRepository postRepository, PostLikeRepository postLikeRepository) {
+    public PostService(
+            PostRepository postRepository,
+            PostLikeRepository postLikeRepository,
+            UserRepository userRepository,
+            View view) {
         this.postRepository = postRepository;
         this.postLikeRepository = postLikeRepository;
+        this.userRepository = userRepository;
+        this.view = view;
     }
 
     // post 작성 메서드
     // 인증 후에 진행할 수 있는 메서드는 매개변수로 현재 user_id까지 받아야 함.
-    public Post createPost(PostCreateRequestDTO request, int currentId) {
-        String title = request.getTitle();
-        String content = request.getContent();
-        String imageUrl = request.getImageUrl();
+    @Transactional
+    public CreatePostResponseDTO createPost(int currentUserId, PostCreateRequestDTO request) {
 
-        // 제목과 본문은 필수값이므로 누락되면 400 응답 대상
-        if (title == null || title.isBlank()
-                || content == null || content.isBlank()) {
-            throw new IllegalArgumentException("invalid_create_post_request");
-        }
+        User author = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
 
-        // 제목은 화면 정책상 최대 26자
-        if (title.length() > 26) {
-            throw new IllegalArgumentException("invalid_create_post_request");
-        }
+        Post post = new Post(
+                author,
+                request.getTitle(),
+                request.getContent(),
+                request.getImageUrl()
+        );
 
-        int postId = postRepository.save(title, content, imageUrl, currentId);
-        Post post = postRepository.findById(postId);
+        Post savedPost = postRepository.save(post);
 
-        if (post == null) {
-            throw new IllegalStateException("post_not_found");
-        }
+        CreatedPostResponseDTO createdPost = new CreatedPostResponseDTO(
+                savedPost.getPostId()
+        );
 
-        return post;
+        return new CreatePostResponseDTO(createdPost);
     }
 
-    public Post getPost(int postId) {
-        Post post = postRepository.findById(postId);
+    @Transactional
+    public GetPostResponseDTO getPost(int postId, int currentUserId) {
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
+        User author = post.getAuthor();
 
-        if (post == null) {
-            throw new IllegalStateException("post_not_found");
-        }
+        PostAuthorResponseDTO authorResponse = new PostAuthorResponseDTO(
+                author.getUserId(),
+                author.getNickname(),
+                author.getProfileImageUrl()
+        );
 
-        return post;
+        boolean isLiked = postLikeRepository.existsById(
+                new PostLikeId(postId, currentUserId)
+        );
+
+        boolean isAuthor = author.getUserId().equals(currentUserId);
+
+        // JPQL update query는 이미 조회한 post 객체의 viewCount를 갱신하지 않으므로 최신 값을 다시 조회한다.
+        postRepository.increaseViewCount(postId);
+        int viewCount = postRepository.findViewCountByPostId(postId);
+
+        PostResponseDTO postResponse = new PostResponseDTO(
+                post.getPostId(),
+                post.getTitle(),
+                post.getContent(),
+                post.getImageUrl(),
+                authorResponse,
+                post.getCreatedAt().toString(),
+                post.getLikeCount(),
+                post.getCommentCount(),
+                viewCount,
+                isLiked,
+                isAuthor
+        );
+
+        return new GetPostResponseDTO(postResponse);
     }
 
     public GetPostsResponseDTO getPosts(String cursorValue, String sizeValue) {
@@ -66,15 +107,22 @@ public class PostService {
             cursor = Integer.parseInt(cursorValue);
             size = Integer.parseInt(sizeValue);
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("invalid_posts_request");
+            throw new BusinessException(ErrorCode.INVALID_POSTS_REQUEST);
         }
 
         if (cursor < 0 || size <= 0) {
-            throw new IllegalArgumentException("invalid_posts_request");
+            throw new BusinessException(ErrorCode.INVALID_POSTS_REQUEST);
         }
 
-        // 화면에 보여줄 개수보다 하나 더 조회하여 다음 페이지 존재 여부를 판단한다.
-        List<PostListItemResponseDTO> posts = postRepository.findPostsByCursor(cursor, size + 1);
+        /*
+         * 다음 페이지가 있는지 확인하기 위해 요청 size보다 1개 더 조회한다.
+         * 예를 들어 화면에는 10개만 보여주지만 DB에서는 11개를 조회한다.
+         * 11번째 데이터가 있으면 has_next=true로 판단한다.
+         */
+        List<PostListItemResponseDTO> posts = postRepository.findPostListByCursor(
+                cursor,
+                size + 1
+        );
 
         boolean hasNext = posts.size() > size;
 
@@ -84,98 +132,81 @@ public class PostService {
 
         Integer nextCursor = null;
 
-        // 다음 조회는 post_id < cursor 조건을 사용하므로 마지막으로 응답한 ID 자체를 전달한다.
         if (hasNext && !posts.isEmpty()) {
             nextCursor = posts.get(posts.size() - 1).getPostId();
         }
 
-        PaginationResponseDTO pagination = new PaginationResponseDTO();
-        pagination.setNextCursor(nextCursor);
-        pagination.setHasNext(hasNext);
+        PaginationResponseDTO pagination = new PaginationResponseDTO(nextCursor, hasNext);
 
-        GetPostsResponseDTO getPostsResponseDTO = new GetPostsResponseDTO();
-        getPostsResponseDTO.setPosts(posts);
-        getPostsResponseDTO.setPagination(pagination);
-
-        return getPostsResponseDTO;
+        return new GetPostsResponseDTO(posts, pagination);
     }
 
+    @Transactional
     public PostUpdateResponseDTO updatePost(int postId, int currentUserId, PostUpdateRequestDTO request) {
-        if (request.getTitle() == null || request.getTitle().isBlank()
-                || request.getContent() == null || request.getContent().isBlank()) {
-            throw new IllegalArgumentException("invalid_update_post_request");
+
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
+
+        if (!post.getAuthor().getUserId().equals(currentUserId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
-        if (request.getTitle().length() > 26) {
-            throw new IllegalArgumentException("invalid_update_post_request");
-        }
-
-        Integer authorId = postRepository.findAuthorIdByPostId(postId);
-
-        if (authorId == null) {
-            throw new IllegalStateException("post_not_found");
-        }
-
-        if (authorId != currentUserId) {
-            throw new SecurityException("forbidden");
-        }
-
-        postRepository.update(
-                postId,
+        // JPA 변경 감지를 사용하기 위해 영속 상태의 Post 엔티티 값만 변경한다.
+        post.update(
                 request.getTitle(),
                 request.getContent(),
                 request.getImageUrl()
         );
 
-        PostUpdateResponseDTO postUpdateResponseDTO = new PostUpdateResponseDTO();
-        postUpdateResponseDTO.setPostId(postId);
-
-        return postUpdateResponseDTO;
+        return new PostUpdateResponseDTO(postId);
     }
 
     public void deletePost(int postId, int currentUserId) {
-        Integer authorId = postRepository.findAuthorIdByPostId(postId);
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
 
-        if (authorId == null) {
-            throw new IllegalStateException("post_not_found");
+        if (!post.getAuthor().getUserId().equals(currentUserId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
-        if (authorId != currentUserId) {
-            throw new SecurityException("forbidden");
-        }
-
-        postRepository.deleteById(postId);
+        postRepository.delete(post);
     }
 
-    // post_likes 변경과 posts.like_count 변경 중 하나만 반영되는 것을 막기 위해 트랜잭션으로 묶는다.
+    // post_likes 변경과 posts.like_count 변경이 하나의 작업으로 처리되도록 트랜잭션으로 묶는다.
     @Transactional
     public PostLikeResponseDTO toggleLike(int postId, int currentUserId) {
-        if (postRepository.findById(postId) == null) {
-            throw new IllegalStateException("post_not_found");
-        }
+        Post post = postRepository.findByIdForUpdate(postId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
+
+        User user = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
+
+        PostLikeId postLikeId = new PostLikeId(postId, currentUserId);
 
         boolean liked;
 
-        // 좋아요 여부는 사용자마다 달라지는 값이므로 posts의 고정 컬럼으로 저장하지 않는다.
-        // post_likes에 post_id와 user_id 조합이 있는지 확인하여 등록과 취소를 결정한다.
-        if (postLikeRepository.exists(postId, currentUserId)) {
-            postLikeRepository.delete(postId, currentUserId);
+        if (postLikeRepository.existsById(postLikeId)) {
+            PostLike postLike = postLikeRepository.findById(postLikeId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.POST_LIKE_NOT_FOUND));
+
+            postLikeRepository.delete(postLike);
             postRepository.decreaseLikeCount(postId);
             liked = false;
         } else {
-            postLikeRepository.save(postId, currentUserId);
+            PostLike postLike = new PostLike(post, user);
+
+            postLikeRepository.save(postLike);
             postRepository.increaseLikeCount(postId);
             liked = true;
         }
 
         int likeCount = postRepository.findLikeCountByPostId(postId);
 
-        PostLikeResponseDTO response = new PostLikeResponseDTO();
-        response.setPostId(postId);
-        response.setLiked(liked);
-        response.setLikeCount(likeCount);
-
-        return response;
+        return new PostLikeResponseDTO(
+                postId,
+                liked,
+                likeCount
+        );
     }
 
 }

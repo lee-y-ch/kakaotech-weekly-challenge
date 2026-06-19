@@ -1,21 +1,13 @@
 package com.community.community.dto;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.Getter;
 
+@Getter
 public class LoginResponseDTO {
 
-    @JsonProperty("session_id")
-    private String sessionId;
+    private final UserResponseDTO user;
 
-    public LoginResponseDTO() {
-
-    }
-
-    public String getSessionId() {
-        return sessionId;
-    }
-
-    public void setSessionId(String sessionId) {
-        this.sessionId = sessionId;
+    public LoginResponseDTO(UserResponseDTO user) {
+        this.user = user;
     }
 }

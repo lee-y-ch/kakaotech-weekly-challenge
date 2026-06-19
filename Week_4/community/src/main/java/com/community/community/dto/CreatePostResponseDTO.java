@@ -1,21 +1,14 @@
 package com.community.community.dto;
 
+import lombok.Getter;
+
+@Getter
 public class CreatePostResponseDTO {
 
-    private PostResponseDTO post;
+    private final CreatedPostResponseDTO post;
 
-    public CreatePostResponseDTO() {
-    }
-
-    public CreatePostResponseDTO(PostResponseDTO post) {
-        this.post = post;
-    }
-
-    public PostResponseDTO getPost() {
-        return post;
-    }
-
-    public void setPost(PostResponseDTO post) {
+    public CreatePostResponseDTO(CreatedPostResponseDTO post) {
         this.post = post;
     }
 }
+

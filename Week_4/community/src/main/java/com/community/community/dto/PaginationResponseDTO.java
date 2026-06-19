@@ -1,31 +1,19 @@
 package com.community.community.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.Getter;
 
+@Getter
 public class PaginationResponseDTO {
 
     @JsonProperty("next_cursor")
-    private Integer nextCursor;
+    private final Integer nextCursor;
 
     @JsonProperty("has_next")
-    private boolean hasNext;
+    private final boolean hasNext;
 
-    public PaginationResponseDTO() {
-    }
-
-    public Integer getNextCursor() {
-        return nextCursor;
-    }
-
-    public boolean isHasNext() {
-        return hasNext;
-    }
-
-    public void setNextCursor(Integer nextCursor) {
+    public PaginationResponseDTO(Integer nextCursor, boolean hasNext) {
         this.nextCursor = nextCursor;
-    }
-
-    public void setHasNext(boolean hasNext) {
         this.hasNext = hasNext;
     }
 }
