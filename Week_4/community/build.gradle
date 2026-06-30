@@ -22,6 +22,11 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+	// AWS SDK (bom: 버전 불일치 해소)
+	implementation platform('software.amazon.awssdk:bom:2.46.17')
+	implementation 'software.amazon.awssdk:s3'
+
 	implementation 'org.springframework.security:spring-security-crypto'
 	runtimeOnly 'com.mysql:mysql-connector-j'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'

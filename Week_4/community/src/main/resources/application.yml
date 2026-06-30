@@ -30,4 +30,18 @@ jwt:
   access-token-exp-seconds: 7200
 
 file:
-  upload-dir: ${FILE_UPLOAD_DIR:uploads/images}
+  upload-dir: ${FILE_UPLOAD_DIR:uploads/
+
+aws:
+  region: ${AWS_REGION:ap-northeast-2}
+
+  s3:
+    original-bucket: ${S3_ORIGINAL_BUCKET}
+    processed-bucket: ${S3_PROCESSED_BUCKET}
+
+  image:
+    base-url: "${IMAGE_BASE_URL:https://images.leo-community.xyz}"
+
+  presigned-url:
+    expiration-seconds: ${PRESIGNED_URL_EXPIRATION_SECONDS:300}
+    max-file-size: ${IMAGE_MAX_FILE_SIZE:10MB}
