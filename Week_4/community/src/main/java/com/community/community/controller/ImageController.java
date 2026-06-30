@@ -2,11 +2,9 @@ package com.community.community.controller;
 
 import com.community.community.ApiResponse;
 import com.community.community.auth.CurrentUserId;
-import com.community.community.dto.ImageUploadResponseDTO;
-import com.community.community.dto.PresignedImageUploadRequestDTO;
-import com.community.community.dto.PresignedImageUploadResponseDTO;
-import com.community.community.dto.SignupProfileImageUploadRequestDTO;
+import com.community.community.dto.*;
 import com.community.community.service.ImagePresignedUrlService;
+import com.community.community.service.ImageS3Service;
 import com.community.community.service.ImageService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -19,10 +17,12 @@ public class ImageController {
 
     private final ImageService imageService;
     private final ImagePresignedUrlService imagePresignedUrlService;
+    private final ImageS3Service imageS3Service;
 
-    public ImageController(ImageService imageService, ImagePresignedUrlService imagePresignedUrlService) {
+    public ImageController(ImageService imageService, ImagePresignedUrlService imagePresignedUrlService, ImageS3Service imageS3Service) {
         this.imageService = imageService;
         this.imagePresignedUrlService = imagePresignedUrlService;
+        this.imageS3Service = imageS3Service;
     }
 
     @PostMapping(value = "/images", consumes = "multipart/form-data")
@@ -68,6 +68,41 @@ public class ImageController {
         return ResponseEntity.ok(
                 new ApiResponse<>(
                         "presigned_url_create_success",
+                        data
+                )
+        );
+    }
+
+    @PostMapping("/images/status")
+    public ResponseEntity<?> getImageStatus(
+            @CurrentUserId int currentUserId,
+            @Valid @RequestBody ImageStatusRequestDTO request
+    ) {
+        ImageStatusResponseDTO data =
+                imageS3Service.getAuthenticatedImageStatus(
+                        request
+                );
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        "image_status_check_success",
+                        data
+                )
+        );
+    }
+
+    @PostMapping("/images/status/signup-profile")
+    public ResponseEntity<?> getSignupProfileImageStatus(
+            @Valid @RequestBody ImageStatusRequestDTO request
+    ) {
+        ImageStatusResponseDTO data =
+                imageS3Service.getSignupProfileImageStatus(
+                        request
+                );
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        "image_status_check_success",
                         data
                 )
         );
