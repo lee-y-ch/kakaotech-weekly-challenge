@@ -28,6 +28,9 @@ public enum ErrorCode {
     UNSUPPORTED_IMAGE_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "unsupported_image_type"),
     IMAGE_FILE_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "image_file_too_large"),
     PRESIGNED_URL_CREATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "presigned_url_creation_failed"),
+    IMAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "image_not_found"),
+    IMAGE_STATUS_CHECK_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "image_status_check_failed"),
+    IMAGE_DELETE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "image_delete_failed"),
     IMAGE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "image_upload_failed"),
 
     // Comment
