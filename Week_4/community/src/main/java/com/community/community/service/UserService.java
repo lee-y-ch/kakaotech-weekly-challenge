@@ -4,21 +4,28 @@ import com.community.community.dto.*;
 import com.community.community.entity.User;
 import com.community.community.exception.BusinessException;
 import com.community.community.exception.ErrorCode;
+import com.community.community.repository.PostRepository;
 import com.community.community.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.Objects;
+
 @Service
 public class UserService {
 
     private final UserRepository userRepository;
+    private final PostRepository postRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ImageS3Service imageS3Service;
 
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
-
+    public UserService(UserRepository userRepository, PostRepository postRepository, PasswordEncoder passwordEncoder, ImageS3Service imageS3Service) {
         this.userRepository = userRepository;
+        this.postRepository = postRepository;
         this.passwordEncoder = passwordEncoder;
+        this.imageS3Service = imageS3Service;
     }
 
     // 회원가입 처리 로직
@@ -79,7 +86,13 @@ public class UserService {
             throw new BusinessException(ErrorCode.NICKNAME_ALREADY_EXISTS);
         }
 
+        String previousProfileImageUrl = user.getProfileImageUrl();
+
         user.updateProfile(request.getNickname(), request.getProfileImageUrl());
+
+        if (!Objects.equals(previousProfileImageUrl, request.getProfileImageUrl())) {
+            imageS3Service.deleteImageByUrlAfterCommit(previousProfileImageUrl);
+        }
 
         UserResponseDTO userResponse = new UserResponseDTO(
                 user.getUserId(),
@@ -148,7 +161,15 @@ public class UserService {
         User user = userRepository.findById(pathUserId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
+        String profileImageUrl = user.getProfileImageUrl();
+
+        List<String> postImageUrls = postRepository.findImageUrlsByAuthorId(pathUserId);
+
         userRepository.delete(user);
+
+        imageS3Service.deleteImageByUrlAfterCommit(profileImageUrl);
+
+        postImageUrls.forEach(imageS3Service::deleteImageByUrlAfterCommit);
     }
 
     @Transactional(readOnly = true)
