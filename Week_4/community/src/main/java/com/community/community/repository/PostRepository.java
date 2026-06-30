@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface PostRepository extends JpaRepository<Post, Integer>, PostRepositoryCustom {
@@ -46,4 +47,7 @@ public interface PostRepository extends JpaRepository<Post, Integer>, PostReposi
 
     @Query("SELECT p.viewCount FROM Post p WHERE p.postId = :postId")
     int findViewCountByPostId(@Param("postId") Integer postId);
+
+    @Query(" SELECT p.imageUrl FROM Post p WHERE p.author.userId = :userId AND p.imageUrl IS NOT NULL")
+    List<String> findImageUrlsByAuthorId(@Param("userId") Integer userId);
 }

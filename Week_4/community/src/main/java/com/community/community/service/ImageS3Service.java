@@ -5,7 +5,11 @@ import com.community.community.dto.ImageStatusRequestDTO;
 import com.community.community.dto.ImageStatusResponseDTO;
 import com.community.community.exception.BusinessException;
 import com.community.community.exception.ErrorCode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
@@ -13,6 +17,7 @@ import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -41,6 +46,10 @@ public class ImageS3Service {
                     + "\\.webp$"
     );
 
+    private static final Logger log = LoggerFactory.getLogger(ImageS3Service.class);
+
+    private static final List<String> ORIGINAL_EXTENSIONS = List.of("jpg", "png", "webp");
+
     private final S3Client s3Client;
     private final AwsProperties awsProperties;
 
@@ -52,15 +61,11 @@ public class ImageS3Service {
         this.awsProperties = awsProperties;
     }
 
-    public ImageStatusResponseDTO getAuthenticatedImageStatus(
-            ImageStatusRequestDTO request
-    ) {
+    public ImageStatusResponseDTO getAuthenticatedImageStatus(ImageStatusRequestDTO request) {
         return getImageStatus(request, null);
     }
 
-    public ImageStatusResponseDTO getSignupProfileImageStatus(
-            ImageStatusRequestDTO request
-    ) {
+    public ImageStatusResponseDTO getSignupProfileImageStatus(ImageStatusRequestDTO request) {
         return getImageStatus(request, "profile");
     }
 
@@ -71,31 +76,15 @@ public class ImageS3Service {
         String originalKey = request.getOriginalKey().trim();
         String processedKey = request.getProcessedKey().trim();
 
-        validateKeyPair(
-                originalKey,
-                processedKey,
-                requiredCategory
-        );
+        validateKeyPair(originalKey, processedKey, requiredCategory);
 
-        HeadObjectResponse originalObject =
-                getRequiredOriginalObject(originalKey);
+        HeadObjectResponse originalObject = getRequiredOriginalObject(originalKey);
 
-        validateUploadedObject(
-                originalKey,
-                processedKey,
-                originalObject
-        );
+        validateUploadedObject(originalKey, processedKey, originalObject);
 
-        boolean ready = objectExists(
-                awsProperties.s3().processedBucket(),
-                processedKey
-        );
+        boolean ready = objectExists(awsProperties.s3().processedBucket(), processedKey);
 
-        return new ImageStatusResponseDTO(
-                ready,
-                processedKey,
-                buildImageUrl(processedKey)
-        );
+        return new ImageStatusResponseDTO(ready, processedKey, buildImageUrl(processedKey));
     }
 
     public void deleteImage(
@@ -105,18 +94,101 @@ public class ImageS3Service {
         validateKeyPair(originalKey, processedKey, null);
 
         try {
-            deleteObject(
-                    awsProperties.s3().originalBucket(),
-                    originalKey
+            deleteObject(awsProperties.s3().originalBucket(), originalKey);
+
+            deleteObject(awsProperties.s3().processedBucket(), processedKey);
+        } catch (SdkException e) {
+            throw new BusinessException(ErrorCode.IMAGE_DELETE_FAILED);
+        }
+    }
+
+    public void deleteImageByUrlAfterCommit(String imageUrl) {
+        if (extractProcessedKey(imageUrl) == null) {
+            return;
+        }
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            deleteImageByUrlQuietly(imageUrl);
+                        }
+                    }
             );
 
-            deleteObject(
-                    awsProperties.s3().processedBucket(),
-                    processedKey
+            return;
+        }
+
+        deleteImageByUrlQuietly(imageUrl);
+    }
+
+    private void deleteImageByUrlQuietly(String imageUrl) {
+        String processedKey = extractProcessedKey(imageUrl);
+
+        if (processedKey == null) {
+            return;
+        }
+
+        Matcher matcher = PROCESSED_KEY_PATTERN.matcher(processedKey);
+
+        if (!matcher.matches()) {
+            return;
+        }
+
+        String category = matcher.group(1);
+        String identifier = matcher.group(2);
+        String originalKeyPrefix = category + "/" + identifier;
+
+        for (String extension : ORIGINAL_EXTENSIONS) {
+            deleteObjectQuietly(
+                    awsProperties.s3().originalBucket(),
+                    originalKeyPrefix + "." + extension
             );
+        }
+
+        deleteObjectQuietly(
+                awsProperties.s3().processedBucket(),
+                processedKey
+        );
+    }
+
+    private String extractProcessedKey(String imageUrl) {
+        if (imageUrl == null || imageUrl.isBlank()) {
+            return null;
+        }
+
+        String baseUrl = awsProperties.image().baseUrl().toString();
+
+        if (baseUrl.endsWith("/")) {
+            baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+        }
+
+        String prefix = baseUrl + "/";
+
+        if (!imageUrl.startsWith(prefix)) {
+            return null;
+        }
+
+        String processedKey = imageUrl.substring(prefix.length());
+        int queryIndex = processedKey.indexOf('?');
+
+        if (queryIndex >= 0) {
+            processedKey = processedKey.substring(0, queryIndex);
+        }
+
+        return processedKey;
+    }
+
+    private void deleteObjectQuietly(String bucket, String key) {
+        try {
+            deleteObject(bucket, key);
         } catch (SdkException e) {
-            throw new BusinessException(
-                    ErrorCode.IMAGE_DELETE_FAILED
+            log.warn(
+                    "S3 image delete failed. bucket={}, key={}",
+                    bucket,
+                    key,
+                    e
             );
         }
     }
