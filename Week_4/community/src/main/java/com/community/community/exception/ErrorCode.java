@@ -26,6 +26,8 @@ public enum ErrorCode {
     // Image
     INVALID_IMAGE_UPLOAD_REQUEST(HttpStatus.BAD_REQUEST, "invalid_image_upload_request"),
     UNSUPPORTED_IMAGE_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "unsupported_image_type"),
+    IMAGE_FILE_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "image_file_too_large"),
+    PRESIGNED_URL_CREATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "presigned_url_creation_failed"),
     IMAGE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "image_upload_failed"),
 
     // Comment
@@ -40,7 +42,6 @@ public enum ErrorCode {
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "unauthorized"),
     FORBIDDEN(HttpStatus.FORBIDDEN, "forbidden"),
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "internal_server_error");
-
 
 
     private final HttpStatus status;
