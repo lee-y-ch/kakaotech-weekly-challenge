@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.View;
 
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class PostService {
@@ -23,17 +24,20 @@ public class PostService {
     private final UserRepository userRepository;
     private final PostRepository postRepository;
     private final PostLikeRepository postLikeRepository;
+    private final ImageS3Service imageS3Service;
     private final View view;
 
     public PostService(
             PostRepository postRepository,
             PostLikeRepository postLikeRepository,
             UserRepository userRepository,
-            View view) {
+            View view,
+            ImageS3Service imageS3Service) {
         this.postRepository = postRepository;
         this.postLikeRepository = postLikeRepository;
         this.userRepository = userRepository;
         this.view = view;
+        this.imageS3Service = imageS3Service;
     }
 
     // post 작성 메서드
@@ -151,12 +155,18 @@ public class PostService {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
+        String previousImageUrl = post.getImageUrl();
         // JPA 변경 감지를 사용하기 위해 영속 상태의 Post 엔티티 값만 변경한다.
+
         post.update(
                 request.getTitle(),
                 request.getContent(),
                 request.getImageUrl()
         );
+
+        if (!Objects.equals(previousImageUrl, request.getImageUrl())) {
+            imageS3Service.deleteImageByUrlAfterCommit(previousImageUrl);
+        }
 
         return new PostUpdateResponseDTO(postId);
     }
@@ -169,7 +179,11 @@ public class PostService {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
+        String imageUrl = post.getImageUrl();
+
         postRepository.delete(post);
+
+        imageS3Service.deleteImageByUrlAfterCommit(imageUrl);
     }
 
     // post_likes 변경과 posts.like_count 변경이 하나의 작업으로 처리되도록 트랜잭션으로 묶는다.
