@@ -31,7 +31,6 @@ public enum ErrorCode {
     IMAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "image_not_found"),
     IMAGE_STATUS_CHECK_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "image_status_check_failed"),
     IMAGE_DELETE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "image_delete_failed"),
-    IMAGE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "image_upload_failed"),
 
     // Comment
     INVALID_CREATE_COMMENT_REQUEST(HttpStatus.BAD_REQUEST, "invalid_create_comment_request"),

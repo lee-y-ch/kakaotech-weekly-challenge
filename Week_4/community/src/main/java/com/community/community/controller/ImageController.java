@@ -5,36 +5,21 @@ import com.community.community.auth.CurrentUserId;
 import com.community.community.dto.*;
 import com.community.community.service.ImagePresignedUrlService;
 import com.community.community.service.ImageS3Service;
-import com.community.community.service.ImageService;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class ImageController {
 
-    private final ImageService imageService;
     private final ImagePresignedUrlService imagePresignedUrlService;
     private final ImageS3Service imageS3Service;
 
-    public ImageController(ImageService imageService, ImagePresignedUrlService imagePresignedUrlService, ImageS3Service imageS3Service) {
-        this.imageService = imageService;
+    public ImageController(ImagePresignedUrlService imagePresignedUrlService, ImageS3Service imageS3Service) {
         this.imagePresignedUrlService = imagePresignedUrlService;
         this.imageS3Service = imageS3Service;
-    }
-
-    @PostMapping(value = "/images", consumes = "multipart/form-data")
-    public ResponseEntity<?> uploadImage(
-            @RequestPart("image") MultipartFile image,
-            @RequestParam("type") String type
-    ) {
-        ImageUploadResponseDTO data = imageService.uploadImage(image, type);
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(
-                new ApiResponse<>("image_upload_success", data)
-        );
     }
 
     @PostMapping("/images/presigned-url")
