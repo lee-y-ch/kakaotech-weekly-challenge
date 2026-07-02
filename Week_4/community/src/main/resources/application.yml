@@ -30,7 +30,7 @@ jwt:
   access-token-exp-seconds: 7200
 
 file:
-  upload-dir: ${FILE_UPLOAD_DIR:uploads/
+  upload-dir: ${FILE_UPLOAD_DIR:uploads/}
 
 aws:
   region: ${AWS_REGION:ap-northeast-2}
