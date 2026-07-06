@@ -12,6 +12,11 @@ public class PostListItemResponseDTO {
     private final String title;
     private final PostAuthorResponseDTO author;
 
+    private final String content;
+
+    @JsonProperty("image_url")
+    private final String imageUrl;
+
     @JsonProperty("created_at")
     private final String createdAt;
 
@@ -28,6 +33,8 @@ public class PostListItemResponseDTO {
             Integer postId,
             String title,
             PostAuthorResponseDTO author,
+            String content,
+            String imageUrl,
             String createdAt,
             int likeCount,
             int commentCount,
@@ -36,6 +43,8 @@ public class PostListItemResponseDTO {
         this.postId = postId;
         this.title = title;
         this.author = author;
+        this.content = content;
+        this.imageUrl = imageUrl;
         this.createdAt = createdAt;
         this.likeCount = likeCount;
         this.commentCount = commentCount;
