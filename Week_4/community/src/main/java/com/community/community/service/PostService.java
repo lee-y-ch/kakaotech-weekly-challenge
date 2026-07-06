@@ -20,6 +20,8 @@ import java.util.Objects;
 @Service
 public class PostService {
 
+    private static final int MIN_SEARCH_KEYWORD_LENGTH = 2;
+    private static final int MAX_SEARCH_LIMIT = 50;
 
     private final UserRepository userRepository;
     private final PostRepository postRepository;
@@ -140,6 +142,55 @@ public class PostService {
             nextCursor = posts.get(posts.size() - 1).getPostId();
         }
 
+        PaginationResponseDTO pagination = new PaginationResponseDTO(nextCursor, hasNext);
+
+        return new GetPostsResponseDTO(posts, pagination);
+    }
+
+    public GetPostsResponseDTO searchPosts(
+            String keywordValue,
+            String cursorValue,
+            String sizeValue,
+            String sortValue
+    ) {
+        String keyword = keywordValue == null ? "" : keywordValue.trim();
+
+        if (keyword.length() < MIN_SEARCH_KEYWORD_LENGTH) {
+            throw new BusinessException(ErrorCode.INVALID_POSTS_REQUEST);
+        }
+
+        int offset;
+        int limit;
+
+        try {
+            offset = Integer.parseInt(cursorValue);
+            limit = Integer.parseInt(sizeValue);
+        } catch (NumberFormatException e) {
+            throw new BusinessException(ErrorCode.INVALID_POSTS_REQUEST);
+        }
+
+        if (offset < 0 || limit <= 0 || limit > MAX_SEARCH_LIMIT) {
+            throw new BusinessException(ErrorCode.INVALID_POSTS_REQUEST);
+        }
+
+        String sort = "relevance".equalsIgnoreCase(sortValue)
+                ? "relevance"
+                : "recent";
+
+        List<PostListItemResponseDTO> posts = postRepository.searchPostList(
+                keyword,
+                offset,
+                limit + 1,
+                sort
+        );
+
+        boolean hasNext = posts.size() > limit;
+
+        if (hasNext) {
+            posts = posts.subList(0, limit);
+        }
+
+        Integer nextCursor = hasNext ? offset + limit : null;
         PaginationResponseDTO pagination = new PaginationResponseDTO(nextCursor, hasNext);
 
         return new GetPostsResponseDTO(posts, pagination);

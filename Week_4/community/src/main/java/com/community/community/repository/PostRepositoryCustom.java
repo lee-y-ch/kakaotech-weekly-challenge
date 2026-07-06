@@ -13,4 +13,12 @@ public interface PostRepositoryCustom {
 
     // page 목록 조회시 응답 DTO들을 반환할 메서드
     List<PostListItemResponseDTO> findPostListByCursor(int cursor, int limit);
+
+    // 검색 결과 목록 조회시 응답 DTO들을 반환할 메서드
+    List<PostListItemResponseDTO> searchPostList(
+            String keyword,
+            int offset,
+            int limit,
+            String sort
+    );
 }

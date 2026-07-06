@@ -3,7 +3,10 @@ package com.community.community.repository;
 import com.community.community.dto.PostAuthorResponseDTO;
 import com.community.community.dto.PostListItemResponseDTO;
 import com.querydsl.core.Tuple;
+import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.CaseBuilder;
+import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 
@@ -77,6 +80,39 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
         return result;
     }
 
+
+    @Override
+    public List<PostListItemResponseDTO> searchPostList(
+            String keyword,
+            int offset,
+            int limit,
+            String sort
+    ) {
+        List<Tuple> tuples = queryFactory
+                .select(
+                        post.postId,
+                        post.title,
+                        post.content,
+                        post.imageUrl,
+                        post.createdAt,
+                        post.likeCount,
+                        post.commentCount,
+                        post.viewCount,
+                        user.userId,
+                        user.nickname,
+                        user.profileImageUrl
+                )
+                .from(post)
+                .join(post.author, user)
+                .where(searchCondition(keyword))
+                .orderBy(searchOrder(sort, keyword))
+                .offset(offset)
+                .limit(limit)
+                .fetch();
+
+        return toPostListItems(tuples);
+    }
+
     /*
      * 첫 조회에서는 cursor가 0이므로 별도 조건을 걸지 않는다.
      * 추가 조회에서는 마지막으로 받은 post_id보다 작은 게시글만 조회한다.
@@ -90,5 +126,56 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
         }
 
         return post.postId.lt(cursor);
+    }
+
+    private BooleanExpression searchCondition(String keyword) {
+        return post.title.containsIgnoreCase(keyword)
+                .or(post.content.containsIgnoreCase(keyword))
+                .or(user.nickname.containsIgnoreCase(keyword));
+    }
+
+    private OrderSpecifier<?>[] searchOrder(String sort, String keyword) {
+        if ("relevance".equals(sort)) {
+            NumberExpression<Integer> relevanceScore = new CaseBuilder()
+                    .when(post.title.containsIgnoreCase(keyword)).then(3)
+                    .when(post.content.containsIgnoreCase(keyword)).then(2)
+                    .when(user.nickname.containsIgnoreCase(keyword)).then(1)
+                    .otherwise(0);
+
+            return new OrderSpecifier<?>[]{
+                    relevanceScore.desc(),
+                    post.postId.desc()
+            };
+        }
+
+        return new OrderSpecifier<?>[]{post.postId.desc()};
+    }
+
+    private List<PostListItemResponseDTO> toPostListItems(List<Tuple> tuples) {
+        List<PostListItemResponseDTO> result = new ArrayList<>();
+
+        for (Tuple tuple : tuples) {
+            PostAuthorResponseDTO author = new PostAuthorResponseDTO(
+                    tuple.get(user.userId),
+                    tuple.get(user.nickname),
+                    tuple.get(user.profileImageUrl)
+            );
+
+            PostListItemResponseDTO item = new PostListItemResponseDTO(
+                    tuple.get(post.postId),
+                    tuple.get(post.title),
+                    author,
+                    tuple.get(post.content),
+                    tuple.get(post.imageUrl),
+                    tuple.get(post.createdAt).toString(),
+                    tuple.get(post.likeCount),
+                    tuple.get(post.commentCount),
+                    tuple.get(post.viewCount)
+            );
+
+            result.add(item);
+        }
+
+        return result;
     }
 }
