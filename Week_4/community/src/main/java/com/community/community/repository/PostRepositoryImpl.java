@@ -33,6 +33,8 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .select(
                         post.postId,
                         post.title,
+                        post.content,
+                        post.imageUrl,
                         post.createdAt,
                         post.likeCount,
                         post.commentCount,
@@ -61,6 +63,8 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                     tuple.get(post.postId),
                     tuple.get(post.title),
                     author,
+                    tuple.get(post.content),
+                    tuple.get(post.imageUrl),
                     tuple.get(post.createdAt).toString(),
                     tuple.get(post.likeCount),
                     tuple.get(post.commentCount),
