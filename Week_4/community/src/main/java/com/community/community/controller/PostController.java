@@ -31,6 +31,26 @@ public class PostController {
                 .body(new ApiResponse<>("create_post_success", data));
     }
 
+    @GetMapping("/posts/search")
+    public ResponseEntity<?> searchPosts(
+            @CurrentUserId int currentUserId,
+            @RequestParam String keyword,
+            @RequestParam(defaultValue = "0") String cursor,
+            @RequestParam(defaultValue = "10") String size,
+            @RequestParam(defaultValue = "recent") String sort
+    ) {
+        GetPostsResponseDTO data = postService.searchPosts(
+                keyword,
+                cursor,
+                size,
+                sort
+        );
+
+        return ResponseEntity.ok(
+                new ApiResponse<>("search_posts_success", data)
+        );
+    }
+
     @GetMapping("/posts/{postId}")
     public ResponseEntity<?> getPost(
             @PathVariable int postId,
