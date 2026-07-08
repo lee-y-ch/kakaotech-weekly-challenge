@@ -1,0 +1,21 @@
+services:
+  community-backend:
+    image: 501479502338.dkr.ecr.ap-northeast-2.amazonaws.com/community/backend:${IMAGE_TAG:-latest}
+    container_name: community-backend
+    ports:
+      - "8080:8080"
+    env_file:
+      - /etc/community.env
+    restart: unless-stopped
+    healthcheck:
+      # HealthController 의 엔드포인트를 curl 로 확인한다.
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 10s      # 10초마다 검사
+      timeout: 3s        # 3초 안에 응답 없으면 실패로 간주
+      retries: 5         # 5번 연속 실패하면 unhealthy
+      start_period: 40s  # Spring Boot 부팅 유예 시간 (이 동안 실패는 카운트 안 함)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
