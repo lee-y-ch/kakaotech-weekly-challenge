@@ -42,6 +42,11 @@ FROM eclipse-temurin:17-jre-jammy AS runtime
 
 WORKDIR /app
 
+# healthcheck 용 curl 설치
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 # 애플리케이션 전용 non-root 계정을 생성
 RUN groupadd --system spring && \
     useradd \
