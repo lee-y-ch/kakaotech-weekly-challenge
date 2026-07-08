@@ -20,7 +20,8 @@ env:
 jobs:
   build-and-deploy:
     name: Build (& Deploy on main)
-    runs-on: ubuntu-latest
+    # arm64 네이티브 러너
+    runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -50,6 +51,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
         uses: aws-actions/amazon-ecr-login@v2
 
+      # ---- 이 태그가 ECR 에 이미 있는지 확인 ----
       - name: Check if image tag already exists in ECR
         id: check
         if: github.ref == 'refs/heads/main'
@@ -67,8 +69,6 @@ jobs:
           fi
 
       # ---- 빌드 ----
-      # main: 태그가 없을 때만 ECR 태그로 빌드
-      # develop: 항상 검증용 로컬 태그로 빌드
       - name: Build Docker image
         run: |
           if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
