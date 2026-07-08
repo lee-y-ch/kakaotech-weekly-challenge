@@ -38,18 +38,7 @@ jobs:
         id: meta
         run: echo "image_tag=git-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
-      # ---- 빌드: 모든 브랜치 공통 ----
-      # main 이면 ECR 태그로, develop 이면 검증용 로컬 태그로 빌드
-      - name: Build Docker image
-        run: |
-          if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
-            IMAGE_TAG="${{ steps.meta.outputs.image_tag }}"
-            docker build -t "${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}" .
-          else
-            docker build -t community-backend:ci-check .
-          fi
-
-      # ---- main 브랜치에서만 실행 ----
+      # ---- main 브랜치에서만: OIDC 자격증명 ----
       - name: Configure AWS credentials (OIDC)
         if: github.ref == 'refs/heads/main'
         uses: aws-actions/configure-aws-credentials@v4
@@ -61,12 +50,46 @@ jobs:
         if: github.ref == 'refs/heads/main'
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Push image to ECR
+      - name: Check if image tag already exists in ECR
+        id: check
         if: github.ref == 'refs/heads/main'
+        run: |
+          IMAGE_TAG="${{ steps.meta.outputs.image_tag }}"
+          if aws ecr describe-images \
+              --region "${AWS_REGION}" \
+              --repository-name "${ECR_REPOSITORY}" \
+              --image-ids imageTag="${IMAGE_TAG}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "이미 존재하는 태그(${IMAGE_TAG}) → build/push 건너뜀"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "새 태그(${IMAGE_TAG}) → build/push 진행"
+          fi
+
+      # ---- 빌드 ----
+      # main: 태그가 없을 때만 ECR 태그로 빌드
+      # develop: 항상 검증용 로컬 태그로 빌드
+      - name: Build Docker image
+        run: |
+          if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
+            if [ "${{ steps.check.outputs.exists }}" = "true" ]; then
+              echo "이미 ECR 에 있는 이미지이므로 빌드를 건너뜁니다."
+            else
+              IMAGE_TAG="${{ steps.meta.outputs.image_tag }}"
+              docker build -t "${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}" .
+            fi
+          else
+            docker build -t community-backend:ci-check .
+          fi
+
+      # ---- ECR push (main + 태그 미존재 시에만) ----
+      - name: Push image to ECR
+        if: github.ref == 'refs/heads/main' && steps.check.outputs.exists == 'false'
         run: |
           IMAGE_TAG="${{ steps.meta.outputs.image_tag }}"
           docker push "${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
 
+      # ---- 배포 (main 이면 항상, 태그 존재 여부와 무관) ----
       - name: Deploy via SSM Run Command
         if: github.ref == 'refs/heads/main'
         run: |
