@@ -1,0 +1,36 @@
+name: Build Cache Measure
+
+on:
+  workflow_dispatch:   # 수동 실행 (Actions 탭에서 Run workflow 버튼)
+
+jobs:
+  measure:
+    runs-on: ubuntu-24.04-arm   # 실제 배포 빌드와 동일한 러너
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0   # v7.0.0
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      # ① 캐시 없이 buildx 빌드 (순수 baseline — 도구 효과 배제)
+      #    캐시를 전혀 쓰지 않고 매번 처음부터 빌드한다.
+      - name: Build WITHOUT cache
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          push: false
+          no-cache: true
+          tags: measure:nocache
+
+      # ② 캐시 사용 빌드
+      #    첫 실행은 캐시 미스라 저장까지 하고(느릴 수 있음),
+      #    2회차부터 캐시 히트로 빨라지는지 본다.
+      - name: Build WITH cache
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          push: false
+          tags: measure:cache
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
