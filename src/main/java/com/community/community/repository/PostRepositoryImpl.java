@@ -15,11 +15,13 @@ import java.util.List;
 
 import static com.community.community.entity.QPost.post;
 import static com.community.community.entity.QUser.user;
+import static software.amazon.awssdk.utils.StringUtils.substring;
 
 @RequiredArgsConstructor
 public class PostRepositoryImpl implements PostRepositoryCustom {
 
     private final JPAQueryFactory queryFactory;
+
 
     /*
      * 게시글 목록 조회는 posts와 users를 함께 조회해야 한다.
@@ -30,13 +32,16 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
      * 따라서 QueryDSL에서 posts와 users를 join하고,
      * 목록 화면에 필요한 컬럼만 선택해서 DTO로 변환한다.
      */
+
+    private static final int LIST_CONTENT_MAX_LENGTH = 140;
+
     @Override
     public List<PostListItemResponseDTO> findPostListByCursor(int cursor, int limit) {
         List<Tuple> tuples = queryFactory
                 .select(
                         post.postId,
                         post.title,
-                        post.content,
+                        post.content.substring(0, LIST_CONTENT_MAX_LENGTH),
                         post.imageUrl,
                         post.createdAt,
                         post.likeCount,
@@ -66,7 +71,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                     tuple.get(post.postId),
                     tuple.get(post.title),
                     author,
-                    tuple.get(post.content),
+                    tuple.get(post.content.substring(0, LIST_CONTENT_MAX_LENGTH)),
                     tuple.get(post.imageUrl),
                     tuple.get(post.createdAt).toString(),
                     tuple.get(post.likeCount),
@@ -92,7 +97,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .select(
                         post.postId,
                         post.title,
-                        post.content,
+                        post.content.substring(0, LIST_CONTENT_MAX_LENGTH),
                         post.imageUrl,
                         post.createdAt,
                         post.likeCount,
@@ -165,7 +170,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                     tuple.get(post.postId),
                     tuple.get(post.title),
                     author,
-                    tuple.get(post.content),
+                    tuple.get(post.content.substring(0, LIST_CONTENT_MAX_LENGTH)),
                     tuple.get(post.imageUrl),
                     tuple.get(post.createdAt).toString(),
                     tuple.get(post.likeCount),
