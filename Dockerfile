@@ -75,4 +75,9 @@ USER spring:spring
 # 실제 8080 포트를 외부에 여는 것은 아님 (문서 역할)
 EXPOSE 8080
 
-ENTRYPOINT ["java", "-jar", "application.jar"]
+ENTRYPOINT ["java", \
+  "-XX:MaxRAMPercentage=50.0", \
+  "-XX:MaxMetaspaceSize=256m", \
+  "-XX:ReservedCodeCacheSize=128m", \
+  "-Xss1m", \
+  "-jar", "application.jar"]
