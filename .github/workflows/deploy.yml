@@ -21,6 +21,7 @@ env:
   AWS_REGION: ap-northeast-2
   ECR_REGISTRY: 501479502338.dkr.ecr.ap-northeast-2.amazonaws.com
   ECR_REPOSITORY: community/backend
+  # 레거시 EC2 배포 경로(DEPLOY_MODE=ssm)에서만 쓰인다
   BACKEND_INSTANCE_ID: i-0e64cceeae8779491
 
 jobs:
@@ -56,7 +57,7 @@ jobs:
 
   # 3) 배포: main merge 시 ECR push + SSM 배포 + 롤백
   deploy:
-    name: Push & Deploy
+    name: Push image & open deploy PR
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 15
@@ -95,7 +96,93 @@ jobs:
           docker build -t "${IMAGE}" .
           docker push "${IMAGE}"
 
-      - name: Deploy via SSM Run Command
+      # 배포는 ArgoCD 가 한다. 여기서는 새 이미지 태그를 매니페스트 저장소에 올려
+      # PR 만 연다. 머지(= 실제 배포 시작)는 사람이 결정한다.
+      - name: Open image tag PR on infra repo
+        if: vars.DEPLOY_MODE != 'ssm'
+        env:
+          GH_TOKEN: ${{ secrets.INFRA_REPO_TOKEN }}
+          IMAGE_TAG: ${{ steps.meta.outputs.image_tag }}
+          INFRA_REPO: lee-y-ch/community-infra
+          VALUES_PATH: helm/backend/values.yaml
+          COMPONENT: backend
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::INFRA_REPO_TOKEN secret is missing, so ${IMAGE_TAG} cannot be promoted."
+            exit 1
+          fi
+
+          BRANCH="chore/deploy-${COMPONENT}-${IMAGE_TAG#git-}"
+
+          git clone --quiet "https://x-access-token:${GH_TOKEN}@github.com/${INFRA_REPO}.git" infra
+          cd infra
+
+          # image: 블록 안의 tag 한 줄만 바꾼다. 다른 곳의 tag 키는 건드리지 않는다.
+          python3 - "${VALUES_PATH}" "${IMAGE_TAG}" <<'PY'
+          import pathlib, re, sys
+
+          path, tag = sys.argv[1], sys.argv[2]
+          values = pathlib.Path(path)
+          lines = values.read_text().splitlines(keepends=True)
+
+          inside = changed = False
+          previous = None
+          for index, line in enumerate(lines):
+              if re.match(r'^image:\s*$', line):
+                  inside = True
+                  continue
+              if inside and re.match(r'^\S', line):
+                  inside = False
+              if inside and not changed:
+                  match = re.match(r'^(\s+tag:\s*)(\S*)\s*$', line)
+                  if match:
+                      previous = match.group(2)
+                      lines[index] = f"{match.group(1)}{tag}\n"
+                      changed = True
+
+          if not changed:
+              sys.exit(f"no tag line found under image: in {path}")
+
+          values.write_text(''.join(lines))
+          print(f"{previous} -> {tag}")
+          PY
+
+          if git diff --quiet; then
+            echo "::notice::${VALUES_PATH} is already at ${IMAGE_TAG}. Nothing to promote."
+            exit 0
+          fi
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -q -b "${BRANCH}"
+          git commit -aqm "chore: deploy ${COMPONENT} ${IMAGE_TAG}"
+          git push --quiet --force origin "${BRANCH}"
+
+          OPEN_PR=$(gh pr list --head "${BRANCH}" --state open --json number --jq '.[0].number // empty')
+          if [ -n "${OPEN_PR}" ]; then
+            echo "::notice::PR #${OPEN_PR} is already open for ${BRANCH}."
+            exit 0
+          fi
+
+          gh pr create --base main --head "${BRANCH}" \
+            --title "chore: deploy ${COMPONENT} ${IMAGE_TAG}" \
+            --body "$(printf '%s\n' \
+              "${COMPONENT} 이미지 \`${IMAGE_TAG}\` 를 배포 대상으로 올립니다." \
+              "" \
+              "- 이미지: 이미 ECR 에 적재되어 있습니다." \
+              "- 출처: ${GITHUB_REPOSITORY}@${GITHUB_SHA}" \
+              "- 이 PR 을 머지하면 ArgoCD 가 감지해 클러스터에 반영합니다." \
+              "- 되돌리려면 머지된 커밋을 revert 하면 ArgoCD 가 이전 태그로 돌립니다." \
+              "" \
+              "자동 생성된 PR 입니다.")"
+
+      # 롤백용 레거시 경로. 저장소 변수 DEPLOY_MODE 를 ssm 으로 두면
+      # GitOps 대신 예전처럼 backend EC2 로 직접 배포한다.
+      # 쓰기 전에 대상 인스턴스가 running + SSM 관리 상태인지 확인할 것.
+      - name: Deploy via SSM Run Command (legacy)
+        if: vars.DEPLOY_MODE == 'ssm'
         run: |
           IMAGE_TAG="${{ steps.meta.outputs.image_tag }}"
 
