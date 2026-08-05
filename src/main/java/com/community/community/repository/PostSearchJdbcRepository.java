@@ -25,10 +25,25 @@ public class PostSearchJdbcRepository {
             int limit
     ) {
         String sql = """
+                WITH recent_boundary AS (
+                    SELECT COALESCE(
+                        (
+                            SELECT boundary.post_id
+                            FROM posts boundary
+                            ORDER BY boundary.post_id DESC
+                            LIMIT 1 OFFSET :boundaryOffset
+                        ),
+                        0
+                    ) AS min_post_id
+                )
                 SELECT
                     p.post_id,
                     p.title,
-                    SUBSTRING(p.content, 1, :contentLength) AS content_preview,
+                    SUBSTRING(
+                        p.content,
+                        1,
+                        :contentLength
+                    ) AS content_preview,
                     p.image_url,
                     p.created_at,
                     p.like_count,
@@ -40,23 +55,29 @@ public class PostSearchJdbcRepository {
                 FROM posts p
                 JOIN users u
                   ON u.user_id = p.user_id
-                WHERE p.post_id > (
-                    SELECT MAX(latest.post_id)
-                    FROM posts latest
-                ) - :scanWindow
+                CROSS JOIN recent_boundary rb
+                WHERE p.post_id >= rb.min_post_id
                   AND (
-                      LOWER(p.title) LIKE LOWER(:likePattern) ESCAPE '!'
-                      OR LOWER(p.content) LIKE LOWER(:likePattern) ESCAPE '!'
-                      OR LOWER(u.nickname) LIKE LOWER(:likePattern) ESCAPE '!'
+                      p.title LIKE :likePattern ESCAPE '!'
+                      OR p.content LIKE :likePattern ESCAPE '!'
+                      OR u.nickname LIKE :likePattern ESCAPE '!'
                   )
                 ORDER BY p.post_id DESC
                 LIMIT :limit
                 """;
 
-        MapSqlParameterSource parameters = commonParameters(keyword, limit)
-                .addValue("scanWindow", RECENT_SCAN_WINDOW);
+        MapSqlParameterSource parameters =
+                commonParameters(keyword, limit)
+                        .addValue(
+                                "boundaryOffset",
+                                RECENT_SCAN_WINDOW - 1
+                        );
 
-        return jdbcTemplate.query(sql, parameters, postRowMapper());
+        return jdbcTemplate.query(
+                sql,
+                parameters,
+                postRowMapper()
+        );
     }
 
     public List<PostListItemResponseDTO> searchRecentByFullText(
@@ -65,24 +86,34 @@ public class PostSearchJdbcRepository {
     ) {
         String sql = """
                 WITH candidate_post_ids AS (
-                    SELECT p.post_id
+                    SELECT
+                        p.post_id
                     FROM posts p
                     WHERE MATCH(p.title, p.content)
-                          AGAINST(:fullTextKeyword IN BOOLEAN MODE)
+                          AGAINST(
+                              :fullTextKeyword IN BOOLEAN MODE
+                          )
 
                     UNION DISTINCT
 
-                    SELECT p.post_id
+                    SELECT
+                        p.post_id
                     FROM users u
                     JOIN posts p
                       ON p.user_id = u.user_id
                     WHERE MATCH(u.nickname)
-                          AGAINST(:fullTextKeyword IN BOOLEAN MODE)
+                          AGAINST(
+                              :fullTextKeyword IN BOOLEAN MODE
+                          )
                 )
                 SELECT
                     p.post_id,
                     p.title,
-                    SUBSTRING(p.content, 1, :contentLength) AS content_preview,
+                    SUBSTRING(
+                        p.content,
+                        1,
+                        :contentLength
+                    ) AS content_preview,
                     p.image_url,
                     p.created_at,
                     p.like_count,
@@ -96,17 +127,25 @@ public class PostSearchJdbcRepository {
                   ON p.post_id = c.post_id
                 JOIN users u
                   ON u.user_id = p.user_id
-                WHERE LOWER(p.title) LIKE LOWER(:likePattern) ESCAPE '!'
-                   OR LOWER(p.content) LIKE LOWER(:likePattern) ESCAPE '!'
-                   OR LOWER(u.nickname) LIKE LOWER(:likePattern) ESCAPE '!'
+                WHERE p.title LIKE :likePattern ESCAPE '!'
+                   OR p.content LIKE :likePattern ESCAPE '!'
+                   OR u.nickname LIKE :likePattern ESCAPE '!'
                 ORDER BY p.post_id DESC
                 LIMIT :limit
                 """;
 
-        MapSqlParameterSource parameters = commonParameters(keyword, limit)
-                .addValue("fullTextKeyword", keyword);
+        MapSqlParameterSource parameters =
+                commonParameters(keyword, limit)
+                        .addValue(
+                                "fullTextKeyword",
+                                keyword
+                        );
 
-        return jdbcTemplate.query(sql, parameters, postRowMapper());
+        return jdbcTemplate.query(
+                sql,
+                parameters,
+                postRowMapper()
+        );
     }
 
     public List<PostListItemResponseDTO> searchRelevanceWithinWindow(
@@ -115,31 +154,52 @@ public class PostSearchJdbcRepository {
             int limit
     ) {
         String sql = """
-            WITH post_candidates AS (
+            WITH recent_boundary AS (
+                SELECT COALESCE(
+                    (
+                        SELECT boundary.post_id
+                        FROM posts boundary
+                        ORDER BY boundary.post_id DESC
+                        LIMIT 1 OFFSET :boundaryOffset
+                    ),
+                    0
+                ) AS min_post_id
+            ),
+            post_candidates AS (
                 SELECT
                     p.post_id,
                     CASE
-                        WHEN LOWER(p.title)
-                             LIKE LOWER(:likePattern) ESCAPE '!'
+                        WHEN p.title
+                             LIKE :likePattern ESCAPE '!'
                             THEN 3
                         ELSE 2
                     END AS field_priority,
                     (
                         CHAR_LENGTH(p.title)
-                        - CHAR_LENGTH(REPLACE(p.title, :keyword, ''))
+                        - CHAR_LENGTH(
+                            REPLACE(
+                                p.title,
+                                :keyword,
+                                ''
+                            )
+                        )
                         + CHAR_LENGTH(p.content)
-                        - CHAR_LENGTH(REPLACE(p.content, :keyword, ''))
+                        - CHAR_LENGTH(
+                            REPLACE(
+                                p.content,
+                                :keyword,
+                                ''
+                            )
+                        )
                     ) / :keywordLength AS term_frequency
                 FROM posts p
-                WHERE p.post_id > (
-                    SELECT MAX(latest.post_id)
-                    FROM posts latest
-                ) - :scanWindow
+                CROSS JOIN recent_boundary rb
+                WHERE p.post_id >= rb.min_post_id
                   AND (
-                      LOWER(p.title)
-                          LIKE LOWER(:likePattern) ESCAPE '!'
-                      OR LOWER(p.content)
-                          LIKE LOWER(:likePattern) ESCAPE '!'
+                      p.title
+                          LIKE :likePattern ESCAPE '!'
+                      OR p.content
+                          LIKE :likePattern ESCAPE '!'
                   )
             ),
             author_candidates AS (
@@ -148,25 +208,25 @@ public class PostSearchJdbcRepository {
                     1 AS field_priority,
                     (
                         CHAR_LENGTH(u.nickname)
-                        - CHAR_LENGTH(REPLACE(
-                            u.nickname,
-                            :keyword,
-                            ''
-                        ))
+                        - CHAR_LENGTH(
+                            REPLACE(
+                                u.nickname,
+                                :keyword,
+                                ''
+                            )
+                        )
                     ) / :keywordLength AS term_frequency
                 FROM users u
                 JOIN posts p
                   ON p.user_id = u.user_id
+                CROSS JOIN recent_boundary rb
                 WHERE MATCH(u.nickname)
                       AGAINST(
                           :fullTextKeyword IN BOOLEAN MODE
                       )
-                  AND LOWER(u.nickname)
-                      LIKE LOWER(:likePattern) ESCAPE '!'
-                  AND p.post_id > (
-                      SELECT MAX(latest.post_id)
-                      FROM posts latest
-                  ) - :scanWindow
+                  AND u.nickname
+                      LIKE :likePattern ESCAPE '!'
+                  AND p.post_id >= rb.min_post_id
             ),
             candidate_rows AS (
                 SELECT
@@ -239,7 +299,10 @@ public class PostSearchJdbcRepository {
 
         MapSqlParameterSource parameters =
                 commonParameters(keyword, limit)
-                        .addValue("keyword", keyword)
+                        .addValue(
+                                "keyword",
+                                keyword
+                        )
                         .addValue(
                                 "keywordLength",
                                 keyword.codePointCount(
@@ -252,10 +315,13 @@ public class PostSearchJdbcRepository {
                                 toBooleanPhrase(keyword)
                         )
                         .addValue(
-                                "scanWindow",
-                                RECENT_SCAN_WINDOW
+                                "boundaryOffset",
+                                RECENT_SCAN_WINDOW - 1
                         )
-                        .addValue("offset", offset);
+                        .addValue(
+                                "offset",
+                                offset
+                        );
 
         return jdbcTemplate.query(
                 sql,
@@ -274,8 +340,8 @@ public class PostSearchJdbcRepository {
                 SELECT
                     p.post_id,
                     CASE
-                        WHEN LOWER(p.title)
-                             LIKE LOWER(:likePattern) ESCAPE '!'
+                        WHEN p.title
+                             LIKE :likePattern ESCAPE '!'
                             THEN 3
                         ELSE 2
                     END AS field_priority,
@@ -289,10 +355,10 @@ public class PostSearchJdbcRepository {
                           :fullTextKeyword IN BOOLEAN MODE
                       )
                   AND (
-                      LOWER(p.title)
-                          LIKE LOWER(:likePattern) ESCAPE '!'
-                      OR LOWER(p.content)
-                          LIKE LOWER(:likePattern) ESCAPE '!'
+                      p.title
+                          LIKE :likePattern ESCAPE '!'
+                      OR p.content
+                          LIKE :likePattern ESCAPE '!'
                   )
             ),
             author_candidates AS (
@@ -310,8 +376,8 @@ public class PostSearchJdbcRepository {
                       AGAINST(
                           :fullTextKeyword IN BOOLEAN MODE
                       )
-                  AND LOWER(u.nickname)
-                      LIKE LOWER(:likePattern) ESCAPE '!'
+                  AND u.nickname
+                      LIKE :likePattern ESCAPE '!'
             ),
             candidate_rows AS (
                 SELECT
@@ -388,7 +454,10 @@ public class PostSearchJdbcRepository {
                                 "fullTextKeyword",
                                 toBooleanPhrase(keyword)
                         )
-                        .addValue("offset", offset);
+                        .addValue(
+                                "offset",
+                                offset
+                        );
 
         return jdbcTemplate.query(
                 sql,
@@ -397,11 +466,23 @@ public class PostSearchJdbcRepository {
         );
     }
 
-    private MapSqlParameterSource commonParameters(String keyword, int limit) {
+    private MapSqlParameterSource commonParameters(
+            String keyword,
+            int limit
+    ) {
         return new MapSqlParameterSource()
-                .addValue("likePattern", toLikePattern(keyword))
-                .addValue("contentLength", LIST_CONTENT_MAX_LENGTH)
-                .addValue("limit", limit);
+                .addValue(
+                        "likePattern",
+                        toLikePattern(keyword)
+                )
+                .addValue(
+                        "contentLength",
+                        LIST_CONTENT_MAX_LENGTH
+                )
+                .addValue(
+                        "limit",
+                        limit
+                );
     }
 
     private String toLikePattern(String keyword) {
@@ -419,13 +500,17 @@ public class PostSearchJdbcRepository {
 
     private RowMapper<PostListItemResponseDTO> postRowMapper() {
         return (resultSet, rowNumber) -> {
-            PostAuthorResponseDTO author = new PostAuthorResponseDTO(
-                    resultSet.getInt("user_id"),
-                    resultSet.getString("nickname"),
-                    resultSet.getString("profile_image_url")
-            );
+            PostAuthorResponseDTO author =
+                    new PostAuthorResponseDTO(
+                            resultSet.getInt("user_id"),
+                            resultSet.getString("nickname"),
+                            resultSet.getString(
+                                    "profile_image_url"
+                            )
+                    );
 
-            Timestamp createdAt = resultSet.getTimestamp("created_at");
+            Timestamp createdAt =
+                    resultSet.getTimestamp("created_at");
 
             return new PostListItemResponseDTO(
                     resultSet.getInt("post_id"),
