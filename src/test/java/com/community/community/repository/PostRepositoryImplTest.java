@@ -74,4 +74,180 @@ class PostRepositoryImplTest {
                 .searchRecentByFullText("오로라", limit);
         verifyNoInteractions(queryFactory);
     }
+
+    @Test
+    void relevanceFirstPageReusesProbeWhenWindowIsDense() {
+        int limit = 13;
+        PostListItemResponseDTO item =
+                mock(PostListItemResponseDTO.class);
+
+        List<PostListItemResponseDTO> probe =
+                Collections.nCopies(51, item);
+
+        when(postSearchJdbcRepository
+                .searchRelevanceWithinWindow(
+                        "한강",
+                        0,
+                        51
+                ))
+                .thenReturn(probe);
+
+        List<PostListItemResponseDTO> result =
+                postRepository.searchPostList(
+                        "한강",
+                        0,
+                        limit,
+                        "relevance"
+                );
+
+        assertThat(result)
+                .hasSize(limit)
+                .containsOnly(item);
+
+        verify(postSearchJdbcRepository)
+                .searchRelevanceWithinWindow(
+                        "한강",
+                        0,
+                        51
+                );
+
+        verify(postSearchJdbcRepository, never())
+                .searchRelevanceByFullText(
+                        anyString(),
+                        anyInt(),
+                        anyInt()
+                );
+
+        verifyNoInteractions(queryFactory);
+    }
+
+    @Test
+    void relevanceLaterPageKeepsBoundedStrategyWhenWindowIsDense() {
+        int offset = 12;
+        int limit = 13;
+
+        PostListItemResponseDTO probeItem =
+                mock(PostListItemResponseDTO.class);
+        PostListItemResponseDTO pageItem =
+                mock(PostListItemResponseDTO.class);
+
+        List<PostListItemResponseDTO> probe =
+                Collections.nCopies(51, probeItem);
+        List<PostListItemResponseDTO> pageResult =
+                Collections.nCopies(limit, pageItem);
+
+        when(postSearchJdbcRepository
+                .searchRelevanceWithinWindow(
+                        "한강",
+                        0,
+                        51
+                ))
+                .thenReturn(probe);
+
+        when(postSearchJdbcRepository
+                .searchRelevanceWithinWindow(
+                        "한강",
+                        offset,
+                        limit
+                ))
+                .thenReturn(pageResult);
+
+        List<PostListItemResponseDTO> result =
+                postRepository.searchPostList(
+                        "한강",
+                        offset,
+                        limit,
+                        "relevance"
+                );
+
+        assertThat(result).isSameAs(pageResult);
+
+        verify(postSearchJdbcRepository)
+                .searchRelevanceWithinWindow(
+                        "한강",
+                        0,
+                        51
+                );
+
+        verify(postSearchJdbcRepository)
+                .searchRelevanceWithinWindow(
+                        "한강",
+                        offset,
+                        limit
+                );
+
+        verify(postSearchJdbcRepository, never())
+                .searchRelevanceByFullText(
+                        anyString(),
+                        anyInt(),
+                        anyInt()
+                );
+
+        verifyNoInteractions(queryFactory);
+    }
+
+    @Test
+    void relevanceKeepsGlobalStrategyWhenWindowIsSparse() {
+        int offset = 12;
+        int limit = 13;
+
+        PostListItemResponseDTO probeItem =
+                mock(PostListItemResponseDTO.class);
+        PostListItemResponseDTO globalItem =
+                mock(PostListItemResponseDTO.class);
+
+        List<PostListItemResponseDTO> probe =
+                Collections.nCopies(2, probeItem);
+        List<PostListItemResponseDTO> globalResult =
+                Collections.nCopies(limit, globalItem);
+
+        when(postSearchJdbcRepository
+                .searchRelevanceWithinWindow(
+                        "오로라",
+                        0,
+                        51
+                ))
+                .thenReturn(probe);
+
+        when(postSearchJdbcRepository
+                .searchRelevanceByFullText(
+                        "오로라",
+                        offset,
+                        limit
+                ))
+                .thenReturn(globalResult);
+
+        List<PostListItemResponseDTO> result =
+                postRepository.searchPostList(
+                        "오로라",
+                        offset,
+                        limit,
+                        "relevance"
+                );
+
+        assertThat(result).isSameAs(globalResult);
+
+        verify(postSearchJdbcRepository)
+                .searchRelevanceWithinWindow(
+                        "오로라",
+                        0,
+                        51
+                );
+
+        verify(postSearchJdbcRepository)
+                .searchRelevanceByFullText(
+                        "오로라",
+                        offset,
+                        limit
+                );
+
+        verify(postSearchJdbcRepository, never())
+                .searchRelevanceWithinWindow(
+                        "오로라",
+                        offset,
+                        limit
+                );
+
+        verifyNoInteractions(queryFactory);
+    }
 }
