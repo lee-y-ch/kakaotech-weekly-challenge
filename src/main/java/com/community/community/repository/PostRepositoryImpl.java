@@ -36,6 +36,10 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
 
     private static final int LIST_CONTENT_MAX_LENGTH = 140;
 
+    // 최대 검색 size 50과 hasNext 확인용 1건을 합친 고정 기준
+    // 요청 size가 달라도 같은 keyword가 동일한 relevance 전략을 사용
+    private static final int RELEVANCE_WINDOW_PROBE_LIMIT = 51;
+
     @Override
     public List<PostListItemResponseDTO> findPostListByCursor(int cursor, int limit) {
         List<Tuple> tuples = queryFactory
@@ -94,6 +98,43 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
             int limit,
             String sort
     ) {
+        if ("relevance".equals(sort)
+                && supportsNgramFullText(keyword)) {
+
+            List<PostListItemResponseDTO> relevanceProbe =
+                    postSearchJdbcRepository
+                            .searchRelevanceWithinWindow(
+                                    keyword,
+                                    0,
+                                    RELEVANCE_WINDOW_PROBE_LIMIT
+                            );
+
+            if (relevanceProbe.size()
+                    == RELEVANCE_WINDOW_PROBE_LIMIT) {
+
+                if (offset == 0
+                        && limit <= relevanceProbe.size()) {
+                    return new ArrayList<>(
+                            relevanceProbe.subList(0, limit)
+                    );
+                }
+
+                return postSearchJdbcRepository
+                        .searchRelevanceWithinWindow(
+                                keyword,
+                                offset,
+                                limit
+                        );
+            }
+
+            return postSearchJdbcRepository
+                    .searchRelevanceByFullText(
+                            keyword,
+                            offset,
+                            limit
+                    );
+        }
+
         if ("recent".equals(sort) && offset == 0) {
             List<PostListItemResponseDTO> fastPath =
                     postSearchJdbcRepository.searchRecentWithinWindow(
