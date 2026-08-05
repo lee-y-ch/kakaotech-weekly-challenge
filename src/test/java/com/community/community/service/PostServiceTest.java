@@ -15,12 +15,13 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.web.servlet.View;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 /**
  * PostService 단위 테스트
@@ -34,7 +35,7 @@ class PostServiceTest {
     @Mock PostLikeRepository postLikeRepository;
     @Mock UserRepository userRepository;
     @Mock ImageS3Service imageS3Service;
-    @Mock View view;
+    @Mock ViewCountService viewCountService;
 
     @InjectMocks PostService postService;
 
@@ -114,5 +115,24 @@ class PostServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_POSTS_REQUEST);
+    }
+
+    @Test
+    @DisplayName("상세 조회 응답은 지연 반영 조회수 서비스가 반환한 값을 사용한다")
+    void getPost_usesBufferedViewCount() {
+        User author = userWithId(1);
+        Post post = postByAuthor(author);
+        ReflectionTestUtils.setField(post, "postId", 10);
+        ReflectionTestUtils.setField(post, "createdAt", LocalDateTime.of(2026, 8, 5, 12, 0));
+
+        when(postRepository.findById(10)).thenReturn(Optional.of(post));
+        when(postLikeRepository.existsById(any())).thenReturn(false);
+        when(viewCountService.incrementAndGet(post)).thenReturn(42);
+
+        var response = postService.getPost(10, 2);
+
+        assertThat(response.getPost().getViewCount()).isEqualTo(42);
+        verify(viewCountService).incrementAndGet(post);
+        verify(postRepository, never()).increaseViewCount(anyInt());
     }
 }
