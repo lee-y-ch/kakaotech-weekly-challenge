@@ -21,6 +21,7 @@ import static software.amazon.awssdk.utils.StringUtils.substring;
 public class PostRepositoryImpl implements PostRepositoryCustom {
 
     private final JPAQueryFactory queryFactory;
+    private final PostSearchJdbcRepository postSearchJdbcRepository;
 
 
     /*
@@ -93,6 +94,25 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
             int limit,
             String sort
     ) {
+        if ("recent".equals(sort) && offset == 0) {
+            List<PostListItemResponseDTO> fastPath =
+                    postSearchJdbcRepository.searchRecentWithinWindow(
+                            keyword,
+                            limit
+                    );
+
+            if (fastPath.size() == limit) {
+                return fastPath;
+            }
+
+            if (supportsNgramFullText(keyword)) {
+                return postSearchJdbcRepository.searchRecentByFullText(
+                        keyword,
+                        limit
+                );
+            }
+        }
+
         List<Tuple> tuples = queryFactory
                 .select(
                         post.postId,
@@ -182,5 +202,13 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
         }
 
         return result;
+    }
+
+    private boolean supportsNgramFullText(String keyword) {
+        return keyword.codePoints().allMatch(codePoint ->
+                Character.UnicodeScript.of(codePoint)
+                        == Character.UnicodeScript.HANGUL
+                        || Character.isWhitespace(codePoint)
+        );
     }
 }
