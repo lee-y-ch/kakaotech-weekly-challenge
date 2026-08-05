@@ -12,7 +12,6 @@ import com.community.community.repository.PostRepository;
 import com.community.community.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.servlet.View;
 
 import java.util.List;
 import java.util.Objects;
@@ -27,18 +26,18 @@ public class PostService {
     private final PostRepository postRepository;
     private final PostLikeRepository postLikeRepository;
     private final ImageS3Service imageS3Service;
-    private final View view;
+    private final ViewCountService viewCountService;
 
     public PostService(
             PostRepository postRepository,
             PostLikeRepository postLikeRepository,
             UserRepository userRepository,
-            View view,
+            ViewCountService viewCountService,
             ImageS3Service imageS3Service) {
         this.postRepository = postRepository;
         this.postLikeRepository = postLikeRepository;
         this.userRepository = userRepository;
-        this.view = view;
+        this.viewCountService = viewCountService;
         this.imageS3Service = imageS3Service;
     }
 
@@ -84,9 +83,7 @@ public class PostService {
 
         boolean isAuthor = author.getUserId().equals(currentUserId);
 
-        // JPQL update query는 이미 조회한 post 객체의 viewCount를 갱신하지 않으므로 최신 값을 다시 조회한다.
-        postRepository.increaseViewCount(postId);
-        int viewCount = postRepository.findViewCountByPostId(postId);
+        int viewCount = viewCountService.incrementAndGet(post);
 
         PostResponseDTO postResponse = new PostResponseDTO(
                 post.getPostId(),
