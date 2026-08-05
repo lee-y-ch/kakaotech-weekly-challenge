@@ -8,6 +8,16 @@ spring:
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
+  data:
+    redis:
+      cluster:
+        nodes: "${VALKEY_HOST:localhost}:${VALKEY_PORT:6379}"
+        max-redirects: 3
+      ssl:
+        enabled: ${VALKEY_SSL_ENABLED:false}
+      connect-timeout: 2s
+      timeout: 2s
+
   servlet:
     multipart:
       max-file-size: 5MB
@@ -45,3 +55,11 @@ aws:
   presigned-url:
     expiration-seconds: ${PRESIGNED_URL_EXPIRATION_SECONDS:300}
     max-file-size: ${IMAGE_MAX_FILE_SIZE:10MB}
+
+view-count:
+  buffer:
+    enabled: ${VIEW_COUNT_BUFFER_ENABLED:false}
+    partitions: 16
+    flush-interval-ms: 10000
+    lock-ttl: 30s
+    total-ttl: 24h
