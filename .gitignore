@@ -11,3 +11,7 @@ build/
 
 uploads/
 .DS_Store
+
+# Architecture working files
+docs/architecture/*
+!docs/architecture/leo.lee*.png
